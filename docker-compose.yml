@@ -1,4 +1,4 @@
-version: '3'
+version: '3.8'
 services:
   nginx:
     image: nginx:1.17.3-alpine
@@ -20,51 +20,111 @@ services:
       - ./php/sock:/sock
     networks:
       - app
+    deploy:
+      resources:
+        limits:
+          memory: 200M
+          cpus: '0.5'
+        reservations:
+          memory: 100M
+          cpus: '0.25'
   mysql:
     image: mariadb:10.4.7
     environment:
       - MYSQL_ROOT_PASSWORD=wt123456
+      - TZ=Asia/Shanghai
+      - MYSQL_INNODB_BUFFER_POOL_SIZE=256M
+      - MYSQL_INNODB_LOG_FILE_SIZE=64M
     ports:
       - 33060:33060
     volumes:
       - ./mysql/data:/var/lib/mysql
       - ./mysql/sock:/var/run/mysqld
+      - ./mysql/conf.d:/etc/mysql/conf.d
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          memory: 800M
+          cpus: '1'
     networks:
       - app
   redis:
     image: redis:5.0.5-alpine
-    command: --requirepass "xhb2025top"
+    command:
+      - --requirepass "xhb2025top"
+      - --maxmemory 256mb # 限制Redis最大内存
     ports:
       - 63790:6379
     volumes:
       - ./redis/data:/data
+    deploy:
+      resources:
+        limits:
+          memory: 300M
+          cpus: '0.5'
+        reservations:
+          memory: 150M
+          cpus: '0.25'
     networks:
       - app
   rabbitmq:
     image: rabbitmq:3.9.11-management
+    environment:
+      - RABBITMQ_VM_MEMORY_HIGH_WATERMARK=512MB # 限制RabbitMQ内存使用
     volumes:
       - ./rabbitmq/data:/var/lib/rabbitmq
     ports:
       - 5672:5672
       - 15672:15672
+    deploy:
+      resources:
+        limits:
+          memory: 500M
+          cpus: '1'
+        reservations:
+          memory: 256M
+          cpus: '0.5'
     networks:
       - app
   elasticsearch:
     build: ./elasticsearch/analysis-ik
     environment:
       - discovery.type=single-node
-      - 'ES_JAVA_OPTS=-Xms512m -Xmx512m'
+      - 'ES_JAVA_OPTS=-Xms256m -Xmx256m'
       - TZ=Asia/Shanghai
+      # ES性能优化参数
+      - bootstrap.memory_lock=true
+      - thread_pool.write.queue_size=1000
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
     volumes:
       - ./elasticsearch/data:/usr/share/elasticsearch/data
       - ./elasticsearch/config/analysis-ik/IKAnalyzer.cfg.xml:/usr/share/elasticsearch/config/analysis-ik/IKAnalyzer.cfg.xml
       - ./elasticsearch/config/analysis-ik/custom:/usr/share/elasticsearch/config/analysis-ik/custom
+    deploy:
+      resources:
+        limits:
+          memory: 1G # 限制ES总内存使用
+          cpus: '2'
+        reservations:
+          memory: 512M
+          cpus: '1'
     networks:
       - app
   logstash:
     image: logstash:7.6.1
     environment:
       - TZ=Asia/Shanghai
+      # 限制Logstash内存
+      - LS_JAVA_OPTS=-Xmx256m -Xms256m
+      # 减少工作线程数
+      - pipeline.workers=2
+      - pipeline.batch.size=125
     volumes:
       - ./logstash/logstash.conf:/usr/share/logstash/pipeline/logstash.conf
     depends_on:
@@ -76,22 +136,40 @@ services:
       - 4563:4563
     networks:
       - app
+    deploy:
+      resources:
+        limits:
+          memory: 400M
+          cpus: '1'
+        reservations:
+          memory: 200M
+          cpus: '0.5'
   kibana:
     image: kibana:7.6.1
     environment:
       ELASTICSEARCH_HOSTS: http://elasticsearch:9200
       I18N_LOCALE: zh-CN
+      # 限制Kibana内存
+      NODE_OPTIONS: "--max-old-space-size=384"
     depends_on:
       - elasticsearch
     ports:
       - 5601:5601
     networks:
       - app
+    deploy:
+      resources:
+        limits:
+          memory: 500M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
   mongo:
     image: mongo:4.2.5
     environment:
       - TZ=Asia/Shanghai
-      - wiredTigerCacheSizeGB=1 # 缓存大小配置为使用 1GB
+      - wiredTigerCacheSizeGB=0.5 # 缓存大小配置为使用 0.5GB
     volumes:
       - ./mongo/db:/data/db #数据文件挂载
       - ./mongo/logs:/data/logs
@@ -100,16 +178,59 @@ services:
     ports:
       - 27017:27017
     # --auth 开启权限认证       --noauth 关闭权限认证，找回密码时使用此配置重启服务
-    command: mongod --auth
+    command: mongod --auth --wiredTigerCacheSizeGB 0.5
     networks:
       - app
+    deploy:
+      resources:
+        limits:
+          memory: 500M
+          cpus: '1'
+        reservations:
+          memory: 256M
+          cpus: '0.5'
+  minio:
+    image: minio/minio
+    volumes:
+      - ./minio/data:/data
+    ports:
+      - 9090:9000
+      - 9001:9001
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minio20251222
+    command: server /data --console-address ":9001"
+    networks:
+      - app
+    deploy:
+      resources:
+        limits:
+          memory: 300M
+          cpus: '0.5'
+        reservations:
+          memory: 150M
+          cpus: '0.25'
   nacos-registry:
     image: nacos/nacos-server:v2.1.0
     environment:
       - "MODE=standalone"
+      # Nacos内存优化
+      - JVM_XMS=256m
+      - JVM_XMX=256m
+      - NACOS_SERVERS=nacos-registry:8848
     ports:
       - 8848:8848
+      - 9848:9848
     networks:
       - app
+    deploy:
+      resources:
+        limits:
+          memory: 400M
+          cpus: '1'
+        reservations:
+          memory: 256M
+          cpus: '0.5'
 networks:
   app:
+    driver: bridge
