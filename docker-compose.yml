@@ -1,4 +1,3 @@
-version: '3.8'
 services:
   nginx:
     image: nginx:1.17.3-alpine
@@ -20,14 +19,9 @@ services:
       - ./php/sock:/sock
     networks:
       - app
-    deploy:
-      resources:
-        limits:
-          memory: 200M
-          cpus: '0.5'
-        reservations:
-          memory: 100M
-          cpus: '0.25'
+    mem_limit: 200M
+    cpus: '0.5'
+    mem_reservation: 100M
   mysql:
     image: mariadb:10.4.7
     environment:
@@ -40,53 +34,38 @@ services:
     volumes:
       - ./mysql/data:/var/lib/mysql
       - ./mysql/sock:/var/run/mysqld
-      - ./mysql/conf.d:/etc/mysql/conf.d
-    deploy:
-      resources:
-        limits:
-          cpus: '2'
-          memory: 1G
-        reservations:
-          memory: 800M
-          cpus: '1'
+    mem_limit: 1G
+    cpus: '2'
+    mem_reservation: 800M
     networks:
       - app
   redis:
     image: redis:5.0.5-alpine
-    command:
-      - --requirepass "xhb2025top"
-      - --maxmemory 256mb # 限制Redis最大内存
+    command: --requirepass "xhb2025top" --maxmemory 256mb # 限制Redis最大内存
     ports:
       - 63790:6379
     volumes:
       - ./redis/data:/data
-    deploy:
-      resources:
-        limits:
-          memory: 300M
-          cpus: '0.5'
-        reservations:
-          memory: 150M
-          cpus: '0.25'
+    mem_limit: 300M
+    cpus: '0.5'
+    mem_reservation: 150M
     networks:
       - app
   rabbitmq:
     image: rabbitmq:3.9.11-management
     environment:
-      - RABBITMQ_VM_MEMORY_HIGH_WATERMARK=512MB # 限制RabbitMQ内存使用
+      # 设置默认管理员账号（仅当数据目录为空初始化时生效）
+      - RABBITMQ_DEFAULT_USER=admin
+      - RABBITMQ_DEFAULT_PASS=zrkmallswarm2025
+      - RABBITMQ_VM_MEMORY_HIGH_WATERMARK.absolute=512MB # 限制RabbitMQ内存使用
     volumes:
       - ./rabbitmq/data:/var/lib/rabbitmq
     ports:
       - 5672:5672
       - 15672:15672
-    deploy:
-      resources:
-        limits:
-          memory: 500M
-          cpus: '1'
-        reservations:
-          memory: 256M
-          cpus: '0.5'
+    mem_limit: 500M
+    cpus: '1'
+    mem_reservation: 256M
     networks:
       - app
   elasticsearch:
@@ -106,14 +85,9 @@ services:
       - ./elasticsearch/data:/usr/share/elasticsearch/data
       - ./elasticsearch/config/analysis-ik/IKAnalyzer.cfg.xml:/usr/share/elasticsearch/config/analysis-ik/IKAnalyzer.cfg.xml
       - ./elasticsearch/config/analysis-ik/custom:/usr/share/elasticsearch/config/analysis-ik/custom
-    deploy:
-      resources:
-        limits:
-          memory: 1G # 限制ES总内存使用
-          cpus: '2'
-        reservations:
-          memory: 512M
-          cpus: '1'
+    mem_limit: 1G
+    cpus: '2'
+    mem_reservation: 512M
     networks:
       - app
   logstash:
@@ -121,7 +95,7 @@ services:
     environment:
       - TZ=Asia/Shanghai
       # 限制Logstash内存
-      - LS_JAVA_OPTS=-Xmx256m -Xms256m
+      - LS_JAVA_OPTS=-Xmx512M -Xms512M
       # 减少工作线程数
       - pipeline.workers=2
       - pipeline.batch.size=125
@@ -136,14 +110,9 @@ services:
       - 4563:4563
     networks:
       - app
-    deploy:
-      resources:
-        limits:
-          memory: 400M
-          cpus: '1'
-        reservations:
-          memory: 200M
-          cpus: '0.5'
+    mem_limit: 1G
+    cpus: '1'
+    mem_reservation: 200M
   kibana:
     image: kibana:7.6.1
     environment:
@@ -157,14 +126,9 @@ services:
       - 5601:5601
     networks:
       - app
-    deploy:
-      resources:
-        limits:
-          memory: 500M
-          cpus: '0.5'
-        reservations:
-          memory: 256M
-          cpus: '0.25'
+    mem_limit: 500M
+    cpus: '0.5'
+    mem_reservation: 256M
   mongo:
     image: mongo:4.2.5
     environment:
@@ -181,14 +145,9 @@ services:
     command: mongod --auth --wiredTigerCacheSizeGB 0.5
     networks:
       - app
-    deploy:
-      resources:
-        limits:
-          memory: 500M
-          cpus: '1'
-        reservations:
-          memory: 256M
-          cpus: '0.5'
+    mem_limit: 500M
+    cpus: '1'
+    mem_reservation: 256M
   minio:
     image: minio/minio
     volumes:
@@ -202,35 +161,24 @@ services:
     command: server /data --console-address ":9001"
     networks:
       - app
-    deploy:
-      resources:
-        limits:
-          memory: 300M
-          cpus: '0.5'
-        reservations:
-          memory: 150M
-          cpus: '0.25'
+    mem_limit: 300M
+    cpus: '0.5'
+    mem_reservation: 150M
   nacos-registry:
     image: nacos/nacos-server:v2.1.0
     environment:
       - "MODE=standalone"
       # Nacos内存优化
-      - JVM_XMS=256m
-      - JVM_XMX=256m
+      - JAVA_OPTS=-Xms512m -Xmx512m -Xmn256m -XX:MetaspaceSize=64m -XX:MaxMetaspaceSize=128m -Dnacos.standalone=true
       - NACOS_SERVERS=nacos-registry:8848
     ports:
       - 8848:8848
       - 9848:9848
     networks:
       - app
-    deploy:
-      resources:
-        limits:
-          memory: 400M
-          cpus: '1'
-        reservations:
-          memory: 256M
-          cpus: '0.5'
+    mem_limit: 1G
+    cpus: '1'
+    mem_reservation: 500M
 networks:
   app:
     driver: bridge
