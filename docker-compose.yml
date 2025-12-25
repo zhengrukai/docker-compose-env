@@ -22,6 +22,29 @@ services:
     mem_limit: 200M
     cpus: '0.5'
     mem_reservation: 100M
+  zookeeper:
+    image: zookeeper:3.8.3
+    environment:
+      ZOO_MY_ID: 1
+      ZOO_SERVERS: server.1=zookeeper:2888:3888;2181
+      ZK_HEAP_SIZE: "256"
+    volumes:
+      - ./zookeeper/conf/zoo.cfg:/conf/zoo.cfg
+    ports:
+      - 2181:2181
+    networks:
+      - app
+    ulimits:
+      nproc: 65535  # 进程数限制
+      nofile:
+        soft: 65535  # 文件描述符限制
+        hard: 65535
+      memlock: # 内存锁定限制
+        soft: -1
+        hard: -1
+    mem_limit: 1G
+    cpus: '1'
+    mem_reservation: 512M
   mysql:
     image: mariadb:10.4.7
     environment:
