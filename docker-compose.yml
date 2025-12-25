@@ -194,6 +194,10 @@ services:
       # Nacos内存优化
       - JAVA_OPTS=-Xms512m -Xmx512m -Xmn256m -XX:MetaspaceSize=64m -XX:MaxMetaspaceSize=128m -Dnacos.standalone=true
       - NACOS_SERVERS=nacos-registry:8848
+      - NACOS_AUTH_ENABLE=true
+      - NACOS_AUTH_IDENTITY_KEY=zrk2025identityKey
+      - NACOS_AUTH_IDENTITY_VALUE=zrk2025identityValue
+      - NACOS_AUTH_TOKEN=SecretZrkKey012345678901234567890123456789012345678901234567890123456789
     ports:
       - 8848:8848
       - 9848:9848
